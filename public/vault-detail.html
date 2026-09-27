@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Vault Entry — SecureVault</title>
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    .detail-page { max-width: 560px; margin: 60px auto; padding: 0 16px; }
+    .detail-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; box-shadow: 0 20px 50px rgba(0,0,0,0.4); }
+    .detail-header { background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); padding: 28px 28px 24px; }
+    .detail-header h2 { font-size: 22px; font-weight: 800; color: #fff; margin-bottom: 4px; }
+    .detail-header p { color: rgba(255,255,255,0.7); font-size: 13px; }
+    .detail-body { padding: 28px; }
+    .field-group { margin-bottom: 22px; }
+    .field-label { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); font-weight: 700; margin-bottom: 8px; }
+    .field-value { background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px; font-size: 15px; color: var(--text); display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .field-value span { flex: 1; font-family: monospace; word-break: break-all; }
+    .field-value.plain span { font-family: 'Segoe UI', sans-serif; }
+    .enc-badge { display: inline-flex; align-items: center; gap: 6px; background: rgba(99,102,241,0.12); border: 1px solid rgba(99,102,241,0.3); color: var(--accent); padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; margin-bottom: 20px; }
+    .detail-actions { display: flex; gap: 10px; margin-top: 10px; }
+    .detail-actions .btn-primary { flex: 1; }
+    .back-link { display: inline-flex; align-items: center; gap: 6px; color: var(--text-muted); font-size: 14px; text-decoration: none; margin-bottom: 20px; transition: color .2s; }
+    .back-link:hover { color: var(--accent); }
+    .timestamp-row { display: flex; gap: 16px; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border); }
+    .ts-item { flex: 1; }
+    .ts-label { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); font-weight: 700; margin-bottom: 4px; }
+    .ts-value { font-size: 12px; color: var(--text-muted); }
+    .lock-icon { font-size: 40px; margin-bottom: 8px; }
+    .pw-hidden { letter-spacing: 4px; font-size: 18px; }
+    .reveal-btn { background: none; border: 1px solid var(--border); border-radius: 6px; color: var(--text-muted); padding: 4px 10px; cursor: pointer; font-size: 13px; white-space: nowrap; transition: all .2s; }
+    .reveal-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .copy-btn { background: none; border: 1px solid var(--border); border-radius: 6px; color: var(--text-muted); padding: 4px 10px; cursor: pointer; font-size: 13px; white-space: nowrap; transition: all .2s; }
+    .copy-btn:hover { border-color: var(--success); color: var(--success); }
+    .not-found { text-align: center; padding: 80px 20px; color: var(--text-muted); }
+    .not-found .icon { font-size: 52px; margin-bottom: 16px; }
+  </style>
+</head>
+<body>
+  <div class="detail-page">
+    <a class="back-link" href="/" onclick="goBack(event)">← Back to Vault</a>
+    <div id="detail-container"></div>
+  </div>
+
+  <script>
+    const entry = JSON.parse(sessionStorage.getItem('vault_view_entry') || 'null');
+    const user  = sessionStorage.getItem('vault_view_user') || '';
+    let pwVisible = false;
+
+    function goBack(e) {
+      e.preventDefault();
+      history.back();
+    }
+
+    function togglePw() {
+      pwVisible = !pwVisible;
+      document.getElementById('pw-display').textContent = pwVisible ? entry.password : '••••••••••••';
+      document.getElementById('pw-reveal-btn').textContent = pwVisible ? '🙈 Hide' : '👁 Reveal';
+    }
+
+    function copyField(text) {
+      navigator.clipboard.writeText(text).then(() => {
+        const el = document.getElementById('copy-toast');
+        el.style.opacity = '1';
+        setTimeout(() => el.style.opacity = '0', 1800);
+      });
+    }
+
+    function getFavicon(site) {
+      try {
+        const domain = site.includes('://') ? new URL(site).hostname : site.replace(/^www\./, '');
+        return `https://www.google.com/s2/favicons?domain=${domain}&sz=32`;
+      } catch { return ''; }
+    }
+
+    function render() {
+      const container = document.getElementById('detail-container');
+      if (!entry) {
+        container.innerHTML = `<div class="not-found"><div class="icon">🔒</div><p>No entry selected. Please go back and click "View Details" on an entry.</p><br/><a href="/" style="color:var(--accent)">← Go to Vault</a></div>`;
+        return;
+      }
+
+      const favicon = getFavicon(entry.site);
+      container.innerHTML = `
+        <div class="detail-card">
+          <div class="detail-header">
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;">
+              ${favicon ? `<img src="${favicon}" width="28" height="28" style="border-radius:6px;background:#fff;padding:2px;" onerror="this.style.display='none'"/>` : ''}
+              <h2>${escHtml(entry.site)}</h2>
+            </div>
+            <p>Secured with AES-256-CBC · Digitally Signed</p>
+          </div>
+
+          <div class="detail-body">
+            <div class="enc-badge">🔐 AES-256 Encrypted · SHA-256 Protected</div>
+
+            <div class="field-group">
+              <div class="field-label">Company / Website</div>
+              <div class="field-value plain">
+                <span>${escHtml(entry.site)}</span>
+                <button class="copy-btn" onclick="copyField('${escAttr(entry.site)}')">📋 Copy</button>
+              </div>
+            </div>
+
+            <div class="field-group">
+              <div class="field-label">Username / Email</div>
+              <div class="field-value plain">
+                <span>${escHtml(entry.username)}</span>
+                <button class="copy-btn" onclick="copyField('${escAttr(entry.username)}')">📋 Copy</button>
+              </div>
+            </div>
+
+            <div class="field-group">
+              <div class="field-label">Password (AES-256 Decrypted)</div>
+              <div class="field-value">
+                <span id="pw-display" class="pw-hidden">••••••••••••</span>
+                <button class="reveal-btn" id="pw-reveal-btn" onclick="togglePw()">👁 Reveal</button>
+                <button class="copy-btn" onclick="copyField('${escAttr(entry.password)}')">📋 Copy</button>
+              </div>
+            </div>
+
+            <div class="timestamp-row">
+              <div class="ts-item">
+                <div class="ts-label">Created</div>
+                <div class="ts-value">${new Date(entry.createdAt).toLocaleString()}</div>
+              </div>
+              <div class="ts-item">
+                <div class="ts-label">Last Updated</div>
+                <div class="ts-value">${new Date(entry.updatedAt).toLocaleString()}</div>
+              </div>
+            </div>
+
+            <div style="margin-top:24px;">
+              <button class="btn-primary" onclick="history.back()">← Back to Vault</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="copy-toast" style="position:fixed;bottom:24px;right:24px;background:#111827;border:1px solid #22c55e;color:#22c55e;padding:10px 18px;border-radius:10px;font-size:13px;opacity:0;transition:opacity .3s;pointer-events:none;">
+          ✓ Copied to clipboard
+        </div>
+      `;
+    }
+
+    function escHtml(str) {
+      return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+    function escAttr(str) {
+      return String(str).replace(/'/g,"\\'").replace(/"/g,'&quot;');
+    }
+
+    render();
+  </script>
+</body>
+</html>
